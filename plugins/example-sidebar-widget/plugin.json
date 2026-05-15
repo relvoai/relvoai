@@ -1,0 +1,15 @@
+{
+    "name": "Example Sidebar Widget",
+    "slug": "example-sidebar-widget",
+    "version": "0.1.0",
+    "description": "Reference plugin demonstrating both the backend manifest loader and the frontend slot registry. Adds a single sidebar section.",
+    "service_provider": "RelvoAi\\Plugins\\ExampleSidebarWidget\\ExampleSidebarWidgetServiceProvider",
+    "routes": "routes.php",
+    "frontend_bundle": "bundle.js",
+    "capabilities": ["sidebar.section"],
+    "permissions": [],
+    "tools": [],
+    "requires": {
+        "relvoai": ">=0.1.0"
+    }
+}

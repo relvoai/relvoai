@@ -1,0 +1,1 @@
+- [x] Project Cleanup – cleaned index.html and modernized setup (2026-01-02)

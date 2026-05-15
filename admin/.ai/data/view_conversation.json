@@ -1,0 +1,91 @@
+{
+    "success": true,
+    "data": {
+        "id": "string",
+        "status": "string",
+        "priority": "string",
+        "subject": "string",
+        "visitor": {
+            "id": "string",
+            "first_seen_at": "2019-08-24T14:15:22Z",
+            "last_seen_at": "2019-08-24T14:15:22Z",
+            "last_seen_url": "string",
+            "last_referrer": "string",
+            "meta": [
+                null
+            ],
+            "contact": {
+                "id": "string",
+                "external_id": "string",
+                "name": "string",
+                "email": "string",
+                "phone": "string",
+                "avatar_url": "string",
+                "tags": [
+                    null
+                ],
+                "custom_attributes": [
+                    null
+                ],
+                "internal_notes": "string",
+                "merged_into_contact_id": "string",
+                "created_at": "2019-08-24T14:15:22Z",
+                "updated_at": "2019-08-24T14:15:22Z",
+                "deleted_at": "2019-08-24T14:15:22Z"
+            }
+        },
+        "messages": [
+            {
+                "id": "string",
+                "message_type": "string",
+                "body": "string",
+                "client_message_id": "string",
+                "created_at": "2019-08-24T14:15:22Z",
+                "sender": {
+                    "type": "agent",
+                    "name": "string"
+                }
+            }
+        ],
+        "assigned_to": {
+            "id": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "email": "string",
+            "username": "string",
+            "is_active": true,
+            "last_login_at": "2019-08-24T14:15:22Z",
+            "locale": "string",
+            "timezone": "string",
+            "created_at": "2019-08-24T14:15:22Z",
+            "updated_at": "2019-08-24T14:15:22Z",
+            "roles": [
+                null
+            ],
+            "permissions": [
+                null
+            ],
+            "departments": [
+                {
+                    "id": "string",
+                    "name": "string",
+                    "is_active": true,
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "updated_at": "2019-08-24T14:15:22Z",
+                    "users_count": 0
+                }
+            ]
+        },
+        "department": {
+            "id": "string",
+            "name": "string",
+            "is_active": true,
+            "created_at": "2019-08-24T14:15:22Z",
+            "updated_at": "2019-08-24T14:15:22Z",
+            "users_count": 0
+        },
+        "created_at": "string",
+        "updated_at": "string"
+    },
+    "message": null
+}

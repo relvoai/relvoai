@@ -1,0 +1,27 @@
+Relvo AI Enterprise License (proprietary)
+
+Copyright (c) 2026 Relvo AI contributors. All rights reserved.
+
+This directory and all files within it (the "Enterprise Code") are proprietary
+software. The Enterprise Code is NOT covered by the MIT license that applies
+to the rest of this repository.
+
+To run the Enterprise Code in production, you must hold a valid, current
+Relvo AI Enterprise license key issued by the copyright holder. Use without a
+valid key is prohibited.
+
+You may:
+- Read the source for security review and code audit.
+- Run the Enterprise Code locally for evaluation, development, or testing
+  purposes only.
+
+You may NOT:
+- Use the Enterprise Code in production without a valid Enterprise license.
+- Redistribute, sublicense, or sell the Enterprise Code in any form.
+- Remove, alter, or bypass the license-key enforcement.
+
+For commercial licensing inquiries, contact: enterprise@relvoai.app
+(placeholder — founder to confirm address before public launch).
+
+This license placeholder will be replaced by final legal-reviewed terms before
+the first Enterprise release.

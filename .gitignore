@@ -1,0 +1,35 @@
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Node
+node_modules/
+**/node_modules/
+**/dist/
+**/dist-widget/
+**/.vite/
+
+# PHP
+**/vendor/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Laravel storage / artifacts
+api/storage/logs/*.log
+api/storage/framework/cache/*
+api/storage/framework/sessions/*
+api/storage/framework/views/*
+api/public/build/
+
+# .ai scratch
+.ai/.tmp/
+.ai/credentials.json
+.ai/data/
+
+# Docker overrides
+docker-compose.override.yml

@@ -1,0 +1,86 @@
+version: "3.9"
+
+# Production reference compose. Tune per deployment; do not deploy verbatim.
+# Read every env var from the host environment — no hardcoded ports or credentials.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${DB_USERNAME}"]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  api:
+    image: ${API_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: ${APP_URL}
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      QUEUE_CONNECTION: redis
+      BROADCAST_CONNECTION: reverb
+      REVERB_APP_ID: ${REVERB_APP_ID}
+      REVERB_APP_KEY: ${REVERB_APP_KEY}
+      REVERB_APP_SECRET: ${REVERB_APP_SECRET}
+    command: >
+      sh -c "
+        php artisan config:cache &&
+        php artisan route:cache &&
+        php artisan migrate --force --no-interaction &&
+        php-fpm
+      "
+
+  queue:
+    image: ${API_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      - api
+    command: php artisan queue:work --tries=3 --sleep=1
+
+  reverb:
+    image: ${API_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      - api
+    command: php artisan reverb:start --host=0.0.0.0 --port=${REVERB_PORT}
+
+  admin:
+    image: ${ADMIN_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+      - admin
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  postgres-data:

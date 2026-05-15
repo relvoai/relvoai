@@ -1,0 +1,97 @@
+version: "3.9"
+
+# Local development stack for the Relvo AI monorepo.
+# Boots: Postgres 17 + pgvector, Redis, Laravel API (Reverb + queue worker), Vite admin.
+# All ports are bound to 127.0.0.1 — no exposure on LAN by default.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: relvoai-postgres
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-relvoai}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-relvoai}
+      POSTGRES_DB: ${DB_DATABASE:-relvoai}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-relvoai}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: relvoai-redis
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: relvoai-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8000
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:-relvoai}
+      DB_USERNAME: ${DB_USERNAME:-relvoai}
+      DB_PASSWORD: ${DB_PASSWORD:-relvoai}
+      REDIS_HOST: redis
+      QUEUE_CONNECTION: redis
+      BROADCAST_CONNECTION: reverb
+      REVERB_APP_ID: ${REVERB_APP_ID:-local}
+      REVERB_APP_KEY: ${REVERB_APP_KEY:-local}
+      REVERB_APP_SECRET: ${REVERB_APP_SECRET:-local}
+      REVERB_HOST: 0.0.0.0
+      REVERB_PORT: 8080
+    ports:
+      - "127.0.0.1:8000:8000"   # http
+      - "127.0.0.1:8080:8080"   # reverb websocket
+    volumes:
+      - ./api:/var/www/html
+      - api-vendor:/var/www/html/vendor
+    command: >
+      sh -c "
+        php artisan key:generate --force --no-interaction || true;
+        php artisan migrate --seed --force --no-interaction;
+        (php artisan queue:work --tries=1 --sleep=1 &) ;
+        (php artisan reverb:start --host=0.0.0.0 --port=8080 &) ;
+        php artisan serve --host=0.0.0.0 --port=8000
+      "
+
+  admin:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.admin
+    container_name: relvoai-admin
+    depends_on:
+      - api
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./admin:/usr/src/app
+      - admin-node-modules:/usr/src/app/node_modules
+
+volumes:
+  postgres-data:
+  api-vendor:
+  admin-node-modules:

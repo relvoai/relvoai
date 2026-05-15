@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1.7
+
+# ---------- builder ----------
+FROM php:8.3-cli-alpine AS builder
+
+RUN apk add --no-cache \
+    git unzip libzip-dev oniguruma-dev icu-dev postgresql-dev \
+    autoconf g++ make linux-headers \
+ && docker-php-ext-install pdo pdo_pgsql zip mbstring intl bcmath \
+ && pecl install redis \
+ && docker-php-ext-enable redis
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+COPY api/composer.json api/composer.lock ./
+RUN composer install --no-interaction --no-dev --no-scripts --prefer-dist --optimize-autoloader
+
+# ---------- runtime ----------
+FROM php:8.3-cli-alpine AS runtime
+
+RUN apk add --no-cache libzip oniguruma icu-libs libpq \
+ && apk add --no-cache --virtual .build-deps \
+      libzip-dev oniguruma-dev icu-dev postgresql-dev autoconf g++ make linux-headers \
+ && docker-php-ext-install pdo pdo_pgsql zip mbstring intl bcmath \
+ && pecl install redis \
+ && docker-php-ext-enable redis \
+ && apk del .build-deps
+
+WORKDIR /var/www/html
+COPY --from=builder /var/www/html/vendor ./vendor
+COPY api/ ./
+
+RUN addgroup -S app && adduser -S app -G app \
+ && chown -R app:app /var/www/html
+
+USER app
+EXPOSE 8000 8080
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]

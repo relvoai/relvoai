@@ -1,0 +1,557 @@
+{
+  "doc_name": "relvo-backend-refactor-inbox-channels.json",
+  "product": {
+    "name": "Relvo",
+    "description": "API-first support inbox + multi-channel messaging system (Chatwoot-style)."
+  },
+  "critical_rule": {
+    "title": "DEV RESET — NO PATCHING / NO MERGING",
+    "must_do": [
+      "We are still in development. DO NOT patch old migrations, and DO NOT try to merge or preserve old data.",
+      "Modify/replace migrations so the schema is correct as if this is the first build.",
+      "Run a clean rebuild: php artisan db:wipe -> php artisan migrate:fresh -> php artisan db:seed"
+    ],
+    "goal": "Clean schema + clean seed. Remove legacy widget tables entirely."
+  },
+  "refactor_summary": {
+    "before": {
+      "architecture": "Widget-first",
+      "problems": [
+        "Website widget is treated as the primary entity.",
+        "Website-only settings dominate the model.",
+        "Adding Telegram/API/WhatsApp later becomes messy because everything assumes a widget."
+      ]
+    },
+    "after": {
+      "architecture": "Inbox-first + Channels (multi-channel ready)",
+      "concepts": {
+        "inbox": "Primary entity users manage. Holds common support policies (agents, working hours, CSAT, auto-assignment, etc.).",
+        "channel": "A message source/connector attached to an inbox. Types: web_chat, telegram, api, etc.",
+        "channel_config": "Type-specific settings stored in channels.config (JSON). Keep minimal indexed columns for public identifiers."
+      },
+      "note": "API responses MAY be flattened for frontend convenience, but DB MUST remain clean: common settings on inboxes, type-specific on channels.config."
+    }
+  },
+  "relationships": {
+    "inbox_to_channels": {
+      "type": "one_to_many",
+      "rule": "channels has inbox_id. Inbox does NOT store channel_id.",
+      "note": "V1 creation flow will create exactly one channel per inbox, but DB supports multiple channels later."
+    },
+    "inbox_to_agents": {
+      "type": "many_to_many",
+      "via": "inbox_agents"
+    },
+    "channel_to_domains": {
+      "type": "one_to_many",
+      "via": "channel_domains",
+      "applies_to": "web_chat only when restrict mode is enabled"
+    }
+  },
+  "database": {
+    "global_standards": {
+      "framework": "Laravel 12",
+      "primary_keys": "UUID everywhere",
+      "foreign_keys": "Use foreignUuid()->constrained() consistently",
+      "delete_rules": {
+        "cascade": [
+          "channels.inbox_id -> inboxes.id",
+          "channel_domains.channel_id -> channels.id",
+          "inbox_agents.inbox_id -> inboxes.id"
+        ],
+        "cascade_users": [
+          "inbox_agents.user_id -> users.id"
+        ]
+      },
+      "soft_deletes": {
+        "recommended": true,
+        "tables": [
+          "inboxes",
+          "channels"
+        ]
+      }
+    },
+    "tables": {
+      "inboxes": {
+        "purpose": "Common settings shared across all channel types.",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "pk": true
+          },
+          {
+            "name": "name",
+            "type": "varchar(255)",
+            "required": true
+          },
+          {
+            "name": "is_active",
+            "type": "boolean",
+            "default": true
+          },
+          {
+            "name": "avatar_path",
+            "type": "text",
+            "nullable": true
+          },
+          {
+            "name": "greeting_enabled",
+            "type": "boolean",
+            "default": false
+          },
+          {
+            "name": "greeting_message",
+            "type": "text",
+            "nullable": true
+          },
+          {
+            "name": "working_hours_enabled",
+            "type": "boolean",
+            "default": false
+          },
+          {
+            "name": "timezone",
+            "type": "varchar(50)",
+            "nullable": true
+          },
+          {
+            "name": "out_of_office_message",
+            "type": "text",
+            "nullable": true
+          },
+          {
+            "name": "working_hours",
+            "type": "json",
+            "nullable": true,
+            "structure_hint": [
+              "Array of 7 objects (0-6 day_of_week)",
+              "Each item: day_of_week, closed_all_day, open_all_day, open_hour, open_minutes, close_hour, close_minutes"
+            ]
+          },
+          {
+            "name": "csat_survey_enabled",
+            "type": "boolean",
+            "default": false
+          },
+          {
+            "name": "csat_config",
+            "type": "json",
+            "nullable": true
+          },
+          {
+            "name": "enable_auto_assignment",
+            "type": "boolean",
+            "default": false
+          },
+          {
+            "name": "auto_assignment_config",
+            "type": "json",
+            "nullable": true
+          },
+          {
+            "name": "allow_messages_after_resolved",
+            "type": "boolean",
+            "default": true
+          },
+          {
+            "name": "lock_to_single_conversation",
+            "type": "boolean",
+            "default": false
+          },
+          {
+            "name": "sender_name_type",
+            "type": "varchar(20)",
+            "default": "friendly",
+            "allowed": [
+              "friendly",
+              "professional"
+            ]
+          },
+          {
+            "name": "business_name",
+            "type": "varchar(255)",
+            "nullable": true
+          },
+          {
+            "name": "callback_webhook_url",
+            "type": "text",
+            "nullable": true
+          },
+          {
+            "name": "config",
+            "type": "json",
+            "nullable": true
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp"
+          },
+          {
+            "name": "deleted_at",
+            "type": "timestamp",
+            "nullable": true
+          }
+        ]
+      },
+      "channels": {
+        "purpose": "Channel instances attached to an inbox. Stores identifiers + type-specific config.",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "pk": true
+          },
+          {
+            "name": "inbox_id",
+            "type": "uuid",
+            "fk": "inboxes.id",
+            "on_delete": "cascade"
+          },
+          {
+            "name": "type",
+            "type": "varchar(30)",
+            "required": true,
+            "allowed": [
+              "web_chat",
+              "telegram",
+              "api",
+              "whatsapp",
+              "email"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "varchar(255)",
+            "required": true
+          },
+          {
+            "name": "is_active",
+            "type": "boolean",
+            "default": true
+          },
+          {
+            "name": "channel_key",
+            "type": "varchar(64)",
+            "nullable": true,
+            "unique": true,
+            "note": "Public token for web_chat embed/public endpoints (equivalent to website_token concept)."
+          },
+          {
+            "name": "inbox_identifier",
+            "type": "varchar(64)",
+            "nullable": true,
+            "unique": true,
+            "note": "Public identifier for API channel integrations/custom interfaces."
+          },
+          {
+            "name": "hmac_mandatory",
+            "type": "boolean",
+            "default": false
+          },
+          {
+            "name": "hmac_secret",
+            "type": "text",
+            "nullable": true,
+            "note": "Must be encrypted at rest. Never return raw after creation."
+          },
+          {
+            "name": "webhook_url",
+            "type": "text",
+            "nullable": true,
+            "note": "Channel-specific outgoing webhook (commonly for API channel)."
+          },
+          {
+            "name": "config",
+            "type": "json",
+            "nullable": true,
+            "note": "Type-specific settings live here. Do not add dozens of nullable columns."
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp"
+          },
+          {
+            "name": "deleted_at",
+            "type": "timestamp",
+            "nullable": true
+          }
+        ],
+        "rules": [
+          "DO NOT store generated embed script in DB. Always generate on-demand using base_url + channel_key.",
+          "For telegram/api secrets (bot token, hmac_secret), encrypt at rest and never expose raw values after initial creation."
+        ]
+      },
+      "inbox_agents": {
+        "purpose": "Agents/collaborators assigned to an inbox (for routing + UI).",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "pk": true,
+            "note": "Alternative allowed: composite unique(inbox_id,user_id). Choose one approach and keep consistent."
+          },
+          {
+            "name": "inbox_id",
+            "type": "uuid",
+            "fk": "inboxes.id",
+            "on_delete": "cascade"
+          },
+          {
+            "name": "user_id",
+            "type": "uuid",
+            "fk": "users.id",
+            "on_delete": "cascade"
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp"
+          }
+        ],
+        "constraints": [
+          "unique(inbox_id, user_id)"
+        ]
+      },
+      "channel_domains": {
+        "purpose": "Allowed domains list for restricted web_chat channels.",
+        "fields": [
+          {
+            "name": "id",
+            "type": "uuid",
+            "pk": true
+          },
+          {
+            "name": "channel_id",
+            "type": "uuid",
+            "fk": "channels.id",
+            "on_delete": "cascade"
+          },
+          {
+            "name": "domain",
+            "type": "varchar(255)",
+            "required": true,
+            "note": "Host only: example.com (no scheme/path)."
+          },
+          {
+            "name": "created_at",
+            "type": "timestamp"
+          },
+          {
+            "name": "updated_at",
+            "type": "timestamp"
+          }
+        ],
+        "constraints": [
+          "unique(channel_id, domain)"
+        ]
+      }
+    }
+  },
+  "static_channel_types_registry": {
+    "rule": "Channel types MUST be defined in code (not DB). Key by `type` string, not by UUID.",
+    "endpoint": {
+      "path": "GET /api/v1/channel-types",
+      "returns": "type, label, logo(optional), required_fields, defaults(optional summary)"
+    },
+    "types": {
+      "web_chat": {
+        "label": "Website Chat",
+        "generates": [
+          "channel_key",
+          "hmac_secret(optional if identity validation enabled)"
+        ],
+        "defaults": {
+          "website_url": null,
+          "widget_color": "#22c55e",
+          "welcome_title": "",
+          "welcome_tagline": "",
+          "reply_time": "in_a_few_minutes",
+          "selected_feature_flags": [
+            "attachments",
+            "emoji_picker",
+            "end_conversation"
+          ],
+          "enable_email_collect": true,
+          "continuity_via_email": true,
+          "pre_chat_form": {
+            "enabled": false,
+            "pre_chat_message": "Share your queries or comments here.",
+            "fields": [
+              {
+                "name": "emailAddress",
+                "type": "email",
+                "label": "Email",
+                "enabled": false,
+                "required": true,
+                "field_type": "standard"
+              },
+              {
+                "name": "fullName",
+                "type": "text",
+                "label": "Full name",
+                "enabled": false,
+                "required": false,
+                "field_type": "standard"
+              },
+              {
+                "name": "phoneNumber",
+                "type": "text",
+                "label": "Phone number",
+                "enabled": false,
+                "required": false,
+                "field_type": "standard"
+              }
+            ]
+          },
+          "identity_validation": {
+            "enabled": false,
+            "hmac_mandatory": false
+          },
+          "domain_policy": "allow_all"
+        }
+      },
+      "telegram": {
+        "label": "Telegram",
+        "generates": [
+          "hmac_secret(optional)"
+        ],
+        "defaults": {
+          "bot_name": null,
+          "bot_token": null,
+          "webhook_secret": null,
+          "provider_meta": {}
+        },
+        "required_fields": [
+          "bot_token"
+        ]
+      },
+      "api": {
+        "label": "API",
+        "generates": [
+          "inbox_identifier",
+          "hmac_secret(mandatory by default)"
+        ],
+        "defaults": {
+          "additional_attributes": {}
+        },
+        "required_fields": [],
+        "notes": [
+          "API channel should support verifying inbound requests with HMAC.",
+          "Support outgoing webhook_url for event callbacks."
+        ]
+      }
+    }
+  },
+  "creation_flow": {
+    "ui_steps": [
+      "Step 1: Select Channel Type",
+      "Step 2: Create Inbox + Channel (atomic)",
+      "Step 3: Select Agents"
+    ],
+    "api_steps": {
+      "step_1": {
+        "call": "GET /api/v1/channel-types",
+        "frontend_uses": "Render selectable channel type cards."
+      },
+      "step_2": {
+        "preferred": "Single endpoint creates both Inbox + Channel",
+        "call": "POST /api/v1/inboxes",
+        "payload_shape": {
+          "inbox": {
+            "name": "string",
+            "timezone": "string(optional)",
+            "working_hours_enabled": "boolean(optional)"
+          },
+          "channel": {
+            "type": "web_chat|telegram|api",
+            "name": "string",
+            "webhook_url": "string(optional)",
+            "config_overrides": "object(optional)"
+          }
+        },
+        "backend_behavior": [
+          "Create inbox with defaults",
+          "Create channel with inbox_id, type, name",
+          "Generate identifiers depending on type (web_chat->channel_key, api->inbox_identifier)",
+          "Generate secrets depending on type/settings (api->hmac_secret by default)",
+          "Build channels.config by merging static defaults + config_overrides",
+          "Return created inbox + channel summary"
+        ]
+      },
+      "step_3": {
+        "call": "PUT /api/v1/inboxes/{id}/agents",
+        "payload": {
+          "agent_ids": [
+            "uuid",
+            "uuid"
+          ]
+        },
+        "backend_behavior": [
+          "Sync inbox_agents",
+          "Return updated inbox (agents_count included)"
+        ]
+      }
+    }
+  },
+  "management_endpoints": {
+    "inboxes": [
+      "GET /api/v1/inboxes (list)",
+      "POST /api/v1/inboxes (create inbox + channel atomically; preferred)",
+      "GET /api/v1/inboxes/{id} (detail; optionally include channels + agents)",
+      "PUT /api/v1/inboxes/{id} (update common settings)",
+      "DELETE /api/v1/inboxes/{id} (soft delete recommended)",
+      "PUT /api/v1/inboxes/{id}/agents (sync collaborators)"
+    ],
+    "channels": [
+      "POST /api/v1/inboxes/{inbox_id}/channels (optional: add more channels later)",
+      "GET /api/v1/channels/{id}",
+      "PUT /api/v1/channels/{id}",
+      "DELETE /api/v1/channels/{id}"
+    ],
+    "web_chat_extras": [
+      "GET /api/v1/channels/{id}/embed-script (generate; do not store)",
+      "PUT /api/v1/channels/{id}/domains (sync list of hosts into channel_domains)",
+      "POST /api/v1/channels/{id}/rotate-hmac-secret (rotate; never reveal old secret)"
+    ]
+  },
+  "public_web_chat_api": {
+    "base": "/api/v1/public/channels/{channel_key}",
+    "endpoints": [
+      "POST /identify",
+      "POST /sessions/heartbeat",
+      "POST /conversations",
+      "GET /conversations/{id}/messages",
+      "POST /conversations/{id}/messages",
+      "POST /conversations/{id}/attachments",
+      "POST /conversations/{id}/ratings"
+    ]
+  },
+  "seed_plan": {
+    "after_reset": [
+      "Seed roles + permissions + admin user (Laratrust).",
+      "Create a 'Default Inbox'.",
+      "Create a 'Website Chat' channel (type=web_chat) under Default Inbox with generated channel_key.",
+      "Attach admin as inbox agent.",
+      "Optional: create an API inbox to validate inbox_identifier + hmac flow."
+    ]
+  },
+  "final_checks": [
+    "UUID everywhere (including pivot tables where applicable).",
+    "Secrets must be encrypted at rest and not returned raw after creation (only masked).",
+    "Domain restriction: if web_chat and domain_policy=restrict, validate Origin/Referer host against channel_domains.",
+    "OpenAPI/docs must be updated after refactor (api.json should reflect new architecture).",
+    "Remove any legacy widget tables/endpoints unless intentionally kept (should not be kept for this refactor)."
+  ]
+}

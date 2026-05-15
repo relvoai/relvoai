@@ -1,0 +1,255 @@
+{
+    "title": "FRONTEND AI — Relvo Admin (API-ONLY IMPLEMENTATION GUIDE)",
+    "scope": "STRICTLY API + STATE + FLOW IMPLEMENTATION",
+    "design_note": {
+        "important": true,
+        "instruction": "DO NOT design UI, DO NOT introduce layouts, colors, components, or visual systems. Assume a layout already exists. Only wire API logic, state, routing, and page-level data flow."
+    },
+    "absolute_rules": [
+        "DO NOT invent endpoints or payloads.",
+        "DO NOT duplicate endpoint strings anywhere.",
+        "ALL endpoints must come from .ai/contracts/api.json.",
+        "ALL endpoint paths must be registered in a single central file.",
+        "ALL GET requests must use TanStack Query.",
+        "ALL POST/PUT/DELETE must use TanStack Query mutations.",
+        "NO component may call axios/fetch directly.",
+        "NO hardcoded base URLs.",
+        "NO UI logic inside data hooks."
+    ],
+    "api_contract": {
+        "source": ".ai/contracts/api.json",
+        "base_url_env": "VITE_API_BASE_URL",
+        "auth_type": "Bearer Token"
+    },
+    "central_architecture": {
+        "core_files": {
+            "src/core/http/axios.ts": "Axios instance with interceptors",
+            "src/core/http/endpoints.ts": "ALL endpoint definitions",
+            "src/core/http/client.ts": "Typed request helpers wrapping axios",
+            "src/core/query/queryClient.ts": "TanStack Query client",
+            "src/core/auth/authStore.ts": "Zustand store for auth",
+            "src/core/auth/authGuard.ts": "Route protection logic"
+        },
+        "rule": "Pages/components may ONLY call functions from src/features/**/api.ts"
+    },
+    "http_layer": {
+        "axios_instance": {
+            "baseURL": "from VITE_API_BASE_URL",
+            "headers": {
+                "Content-Type": "application/json"
+            },
+            "interceptors": {
+                "request": "Attach Authorization: Bearer <token> if token exists",
+                "response": "If 401 → clear auth store → redirect to /login"
+            }
+        },
+        "client_helpers": {
+            "get": "client.get(url, params?)",
+            "post": "client.post(url, body)",
+            "put": "client.put(url, body)",
+            "delete": "client.delete(url)"
+        }
+    },
+    "endpoints_definition": {
+        "file": "src/core/http/endpoints.ts",
+        "example_structure": {
+            "auth": {
+                "login": "/login",
+                "me": "/me",
+                "logout": "/logout"
+            },
+            "inboxes": {
+                "list": "/inboxes",
+                "create": "/inboxes",
+                "show": "/inboxes/{id}",
+                "update": "/inboxes/{id}",
+                "delete": "/inboxes/{id}",
+                "agents": "/inboxes/{id}/agents",
+                "channels": "/inboxes/{id}/channels"
+            },
+            "channels": {
+                "show": "/channels/{id}",
+                "update": "/channels/{id}",
+                "delete": "/channels/{id}",
+                "embed": "/channels/{id}/embed-script",
+                "rotateHmac": "/channels/{id}/rotate-hmac-secret"
+            },
+            "setup": {
+                "channelTypes": "/channel-types"
+            },
+            "conversations": {
+                "list": "/admin/conversations",
+                "show": "/admin/conversations/{id}",
+                "reply": "/admin/conversations/{id}/reply",
+                "join": "/admin/conversations/{id}/join",
+                "leave": "/admin/conversations/{id}/leave",
+                "transfer": "/admin/conversations/{id}/transfer",
+                "close": "/admin/conversations/{id}/close",
+                "typing": "/admin/conversations/{id}/typing"
+            }
+        }
+    },
+    "state_management": {
+        "auth_store": {
+            "fields": [
+                "token",
+                "user",
+                "isAuthenticated"
+            ],
+            "actions": [
+                "loginSuccess(token, user)",
+                "logout()",
+                "setUser(user)"
+            ],
+            "persistence": "localStorage"
+        }
+    },
+    "tanstack_query_rules": {
+        "query_only_for_get": true,
+        "mutation_for_write": true,
+        "invalidate_on_success": true,
+        "standard_query_keys": [
+            "me",
+            "inboxes",
+            "inbox:{id}",
+            "channel:{id}",
+            "channelTypes",
+            "conversations",
+            "conversation:{id}"
+        ]
+    },
+    "defined_routes": {
+        "auth": {
+            "/login": "Login page"
+        },
+        "protected": {
+            "/inboxes": "Inbox list",
+            "/inboxes/create": "Create inbox flow",
+            "/inboxes/:id": "Inbox details",
+            "/channels/:id": "Channel details",
+            "/conversations": "Conversation list",
+            "/conversations/:id": "Conversation details"
+        }
+    },
+    "core_flows": {
+        "auth_flow": {
+            "steps": [
+                {
+                    "action": "POST /login",
+                    "on_success": [
+                        "store token",
+                        "store user",
+                        "redirect to /inboxes"
+                    ]
+                },
+                {
+                    "action": "GET /me on app boot",
+                    "on_401": "force logout"
+                }
+            ]
+        },
+        "create_inbox_flow": {
+            "important": true,
+            "steps": [
+                {
+                    "step": 1,
+                    "name": "Select Channel Type",
+                    "api": {
+                        "method": "GET",
+                        "endpoint": "/channel-types"
+                    },
+                    "state_output": "selectedChannelType"
+                },
+                {
+                    "step": 2,
+                    "name": "Create Inbox + Channel (atomic)",
+                    "api": {
+                        "method": "POST",
+                        "endpoint": "/inboxes"
+                    },
+                    "payload_shape": {
+                        "inbox": {
+                            "name": "string",
+                            "timezone": "string|null"
+                        },
+                        "channel": {
+                            "type": "enum",
+                            "name": "string",
+                            "webhook_url": "string|null",
+                            "config": "object|null"
+                        }
+                    },
+                    "response_usage": "extract inbox.id"
+                },
+                {
+                    "step": 3,
+                    "name": "Assign Agents",
+                    "api": {
+                        "method": "PUT",
+                        "endpoint": "/inboxes/{id}/agents"
+                    },
+                    "payload": {
+                        "agent_ids": [
+                            "uuid"
+                        ]
+                    },
+                    "on_success": "redirect to /inboxes/{id}"
+                }
+            ]
+        },
+        "list_inboxes_flow": {
+            "api": "GET /inboxes",
+            "notes": [
+                "Render list exactly as returned",
+                "Do not infer channels unless backend includes them"
+            ]
+        },
+        "inbox_details_flow": {
+            "api": "GET /inboxes/{id}",
+            "secondary_actions": [
+                "PUT /inboxes/{id}",
+                "PUT /inboxes/{id}/agents",
+                "POST /inboxes/{id}/channels"
+            ]
+        },
+        "channel_details_flow": {
+            "api": "GET /channels/{id}",
+            "updates": "PUT /channels/{id}",
+            "extras": [
+                {
+                    "condition": "channel.type === web_chat",
+                    "api": "GET /channels/{id}/embed-script"
+                },
+                {
+                    "action": "POST /channels/{id}/rotate-hmac-secret"
+                }
+            ]
+        },
+        "conversation_flow": {
+            "list": "GET /admin/conversations",
+            "details": "GET /admin/conversations/{id}",
+            "reply": "POST /admin/conversations/{id}/reply",
+            "actions": [
+                "join",
+                "leave",
+                "transfer",
+                "close"
+            ]
+        }
+    },
+    "error_handling": {
+        "401": "global logout",
+        "422": "surface backend validation errors directly",
+        "404": "redirect to not-found route"
+    },
+    "final_warning": {
+        "do_not": [
+            "Do not rebuild backend assumptions",
+            "Do not rename payload keys",
+            "Do not flatten responses",
+            "Do not add UI-driven fields",
+            "Do not reintroduce widgets logic"
+        ],
+        "goal": "Frontend must be a thin, correct, predictable consumer of api.json — nothing more."
+    }
+}

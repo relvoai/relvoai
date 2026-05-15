@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relvo Widget Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #f0f2f5;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        code {
+            background: #eee;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Relvo Widget Test Host</h1>
+        <p>This page simulates a client website hosting the Relvo widget.</p>
+
+        <h3>Settings Loaded:</h3>
+        <pre id="settings-display"></pre>
+    </div>
+
+    <!-- 1. Configure Settings -->
+    <script>
+        window.RelvoSettings = {
+            channel_key: "ca2dac84-2512-48b7-8338-095f3ad4436c",
+            user: {
+                external_id: "user_999",
+                name: "Benny The Tester",
+                email: "benny@example.com"
+            }
+        };
+        document.getElementById('settings-display').textContent = JSON.stringify(window.RelvoSettings, null, 2);
+    </script>
+
+    <!-- 2. Load Widget (Simulating production load) -->
+    <!-- Note: In development, we might not have the built file yet. 
+         We will need to build it first: `yarn build:widget` -->
+    <!-- <script src="/widget/relvo.js"></script> -->
+
+
+    <!-- <script>
+        (function (d, t) {
+            var BASE_URL = "https://app.chatwoot.com";
+            var g = d.createElement(t), s = d.getElementsByTagName(t)[0];
+            g.src = BASE_URL + "/packs/js/sdk.js";
+            g.async = true;
+            s.parentNode.insertBefore(g, s);
+            g.onload = function () {
+                window.chatwootSDK.run({
+                    websiteToken: 'gLYV3HE54BRKN89N1hf6qPZT',
+                    baseUrl: BASE_URL
+                })
+            }
+        })(document, "script");
+    </script> -->
+
+    <!-- Start of worketiqs Zendesk Widget script -->
+
+    <!-- <script id="ze-snippet"
+        src="https://static.zdassets.com/ekr/snippet.js?key=27a8c54f-c341-4e9c-9a3b-08a23c4c25b4"> 
+    </script> -->
+
+
+    <!-- End of worketiqs Zendesk Widget script -->
+
+
+
+    <!-- <script src="//code.jivosite.com/widget/iOiZ4FzHcj" async></script> -->
+
+
+
+    <script>
+        (function (d, t) {
+            var BASE_URL = "https://app.chatwoot.com";
+            var g = d.createElement(t), s = d.getElementsByTagName(t)[0];
+            g.src = BASE_URL + "/packs/js/sdk.js";
+            g.async = true;
+            s.parentNode.insertBefore(g, s);
+            g.onload = function () {
+                window.chatwootSDK.run({
+                    websiteToken: 'gLYV3HE54BRKN89N1hf6qPZT',
+                    baseUrl: BASE_URL
+                })
+            }
+        })(document, "script");
+    </script>
+
+
+</body>
+
+</html>
